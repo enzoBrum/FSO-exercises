@@ -1,11 +1,16 @@
-const Numbers = ({persons}) => 
+const Numbers = ({persons, eraseHandler}) => 
     <>
         <h2>Numbers</h2>
         <div>
         {persons.map( 
             (p) => 
-            <div key={p.name}>
-                {p.name} {p.phone}
+            <div key={p.id}>
+                <span>
+                    {p.name} {p.phone}
+                </span>
+                <button onClick={eraseHandler(p.id, p.name)}>
+                    delete
+                </button>
             </div> 
             )
         }

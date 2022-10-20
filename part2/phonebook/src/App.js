@@ -1,14 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Form from './components/Form'
 import Input from './components/Input'
 import Numbers from './components/Numbers'
+import axios from 'axios'
+import personService from './services/persons'
+import Message from './components/Message'
 
-
-
-const valueChangeHandler = (setValue) =>
-  (event) => setValue(event.target.value)
+// this is so ugly :(
+// sadly im to tired to care...
 
 const containSubstringFromStart = (value, string) => {
+  if (typeof(string) !== "string")
+    return false
+  
   value = value.toLowerCase().trim()
   string = string.toLowerCase()
   
@@ -24,31 +28,128 @@ const containSubstringFromStart = (value, string) => {
 }
 
 
+
+
 const App = () => {
-  const [persons, setPersons] = useState([
-    { name: 'Arto Hellas', number: '040-123456', id: 1 },
-    { name: 'Ada Lovelace', number: '39-44-5323523', id: 2 },
-    { name: 'Dan Abramov', number: '12-43-234345', id: 3 },
-    { name: 'Mary Poppendieck', number: '39-23-6423122', id: 4 }
-  ]) 
+  const [persons, setPersons] = useState([]) 
   const [newName, setNewName] = useState('')
   const [newPhone, setNewPhone] = useState('')
   const [search, setSearch] = useState('')
+  const [message, setMessage] = useState({
+    text: null,
+    color: 'black'
+  })
 
+  
+  useEffect(
+    () => {
+      personService
+      .get()
+      .then( (personsReceived) => {
+        setPersons(personsReceived)
+      })
+      
+    }, [])
+  
+    
+  const valueChangeHandler = (setValue) =>
+    (event) => setValue(event.target.value)
+  
+  const eraseHandler = (id, name) =>
+    () => {
+      const err = false
+      const r = window.confirm(`delete ${name}?`)
+      if (!r)
+        return
+
+      personService
+      .erase(id)
+      .then(() => 
+        setPersons(persons.filter( (p) => p.id !== id ))
+      )
+      .catch(() => {
+        setMessage({text: `information about ${name} has already been removed from server`, color:'red'})
+        err = true
+      })
+
+      if (!err)
+      {
+        const mem = {
+          text: `Deleted ${name}`,
+          color: 'darkred'
+        }
+        setMessage(mem)
+      }
+
+      setTimeout(
+        () => setMessage({...message, text: null}),
+        5000
+      )
+    }
+  
   const formSubmitHandler  = (event) => {
     event.preventDefault()
     
-    
-    if (persons.find( (p) => p.name === newName ) !== undefined )
+    const personFound = persons.find( (p) => p.name === newName )
+    const err = false
+    if (personFound !== undefined )
     {
-      alert(`${newName} is already added to phonebook`)
-      return
+      const r  = window.confirm(`${personFound.name} is already adde to phonebook, replace old number with new one?`)
+      if (r)
+      {
+        const updated_person = {...personFound, phone: newPhone}
+        personService
+        .update(updated_person, updated_person.id)
+        .then( (response) => {
+          setPersons(persons.map( (p) => p.id === response.id ? response : p))
+          setNewName('')
+          setNewPhone('')
+        })
+        .catch(() => {
+          setMessage({text: `information about ${personFound.name} has already been removed from server`, color:'red'})
+          err = true
+        })
+
+        if (!err) {
+          const mem = {
+            text: `Changed number of ${personFound.name}`,
+            color: 'darkblue'
+          }
+          setMessage(mem)
+        }
+      }
+      
     }
+    else 
+    {      
+      const new_person = { name: newName, phone: newPhone }
+
+      personService
+      .create(new_person)
+      .then( (response) => {
+        setPersons(persons.concat(response))
+        setNewName("")
+        setNewPhone('')
+      } )
+      .catch(() => {
+        setMessage({text: `information about ${personFound.name} has already been removed from server`, color:'red'})
+        err = true
+      })
     
-    const new_person = { name: newName, phone: newPhone }
-    setPersons(persons.concat(new_person))
-    setNewName("")
-    setNewPhone('')
+    if (!err)
+    {
+      const mem = {
+        text: `Added ${newName}`,
+        color: 'darkgreen'
+      }
+      setMessage(mem)
+    }
+    }
+    setTimeout(
+      () => setMessage({...message, text: null}),
+      5000
+    )
+
   }
   
 
@@ -62,6 +163,7 @@ const App = () => {
   return (
     <div>
       <h2>Phonebook</h2>
+      <Message text={message.text} color={message.color}/>
       <Input 
         text={"filter shown with: "}
         value={search}
@@ -76,7 +178,10 @@ const App = () => {
         phoneValue={newPhone}
         phoneChange={valueChangeHandler(setNewPhone)}
       />      
-      <Numbers persons={persons_shown} />
+      <Numbers 
+        persons={persons_shown} 
+        eraseHandler={eraseHandler}
+      />
     </div>
   )
 }
